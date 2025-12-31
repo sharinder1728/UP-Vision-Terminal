@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UP Vision Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'JetBrains Mono', monospace; }
+        .terminal-bg { background-color: #0d1117; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #161b22; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-blue-400">UP Vision Terminal</h1>
+        </div>
+        <div id="connectionStatus" class="flex items-center space-x-2 text-sm text-red-400">
+            <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+            <span>Disconnected</span>
+        </div>
+    </header>
+
+    <main class="flex-1 p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Sidebar Settings -->
+        <aside class="lg:col-span-1 space-y-6">
+            <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-sm">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase mb-4 tracking-wider">Connection Settings</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs mb-1">Protocol Mode</label>
+                        <select id="protocolMode" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm focus:border-blue-500 outline-none">
+                            <option value="standard">Standard (RS232/USB)</option>
+                            <option value="modbus">Modbus RTU (Auto CRC16)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs mb-1">Baud Rate</label>
+                        <select id="baudRate" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm focus:border-blue-500 outline-none">
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200" selected>115200</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs mb-1">End of Line (EOL)</label>
+                        <select id="eolMode" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm focus:border-blue-500 outline-none">
+                            <option value="none">None</option>
+                            <option value="cr">CR (\r)</option>
+                            <option value="lf">LF (\n)</option>
+                            <option value="crlf">CRLF (\r\n)</option>
+                        </select>
+                    </div>
+
+                    <button id="connectBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center justify-center space-x-2">
+                        <svg id="connIcon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span id="btnText">Connect Port</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-sm">
+                <h2 class="text-sm font-semibold text-gray-400 uppercase mb-4 tracking-wider">Display Options</h2>
+                <div class="space-y-3">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="showHex" class="form-checkbox text-blue-600 rounded bg-gray-900 border-gray-600">
+                        <span class="text-sm">Show as HEX</span>
+                    </label>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="autoScroll" checked class="form-checkbox text-blue-600 rounded bg-gray-900 border-gray-600">
+                        <span class="text-sm">Auto-scroll</span>
+                    </label>
+                    <button id="clearBtn" class="w-full text-xs text-gray-400 hover:text-white border border-gray-600 rounded py-1 mt-2">Clear Terminal</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Terminal Output -->
+        <section class="lg:col-span-3 flex flex-col space-y-4">
+            <div id="terminal" class="terminal-bg flex-1 rounded-xl border border-gray-700 p-4 overflow-y-auto custom-scrollbar text-sm leading-relaxed min-h-[400px]">
+                <div class="text-gray-500 italic mb-2">// UP Vision Terminal initialized. Awaiting connection...</div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-lg">
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div class="flex-1 min-w-[300px]">
+                        <label class="block text-xs mb-1 text-gray-400">Command Input</label>
+                        <input type="text" id="commandInput" placeholder="Enter command or hex..." class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-sm focus:border-blue-500 outline-none text-white font-mono">
+                    </div>
+                    <div class="w-32">
+                        <label class="block text-xs mb-1 text-gray-400">Type</label>
+                        <select id="inputType" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm outline-none">
+                            <option value="text">ASCII/Text</option>
+                            <option value="hex">Hexadecimal</option>
+                        </select>
+                    </div>
+                    <button id="sendBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded transition-transform active:scale-95 flex items-center space-x-2">
+                        <span>Send</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="modbusPreview" class="hidden mt-2 text-xs text-blue-400 font-mono">
+                    Modbus Frame: <span id="crcPreview"></span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // DOM Elements
+        const terminal = document.getElementById('terminal');
+        const connectBtn = document.getElementById('connectBtn');
+        const btnText = document.getElementById('btnText');
+        const connStatus = document.getElementById('connectionStatus');
+        const commandInput = document.getElementById('commandInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const protocolMode = document.getElementById('protocolMode');
+        const inputType = document.getElementById('inputType');
+        const showHex = document.getElementById('showHex');
+        const baudRateSelect = document.getElementById('baudRate');
+        const eolMode = document.getElementById('eolMode');
+        const modbusPreview = document.getElementById('modbusPreview');
+        const crcPreview = document.getElementById('crcPreview');
+        const clearBtn = document.getElementById('clearBtn');
+        const autoScroll = document.getElementById('autoScroll');
+
+        // State Variables
+        let port;
+        let reader;
+        let writer;
+        let keepReading = true;
+
+        // Modbus CRC16 Calculation (Standard Modbus CRC)
+        function calculateCRC16(buffer) {
+            let crc = 0xFFFF;
+            for (let i = 0; i < buffer.length; i++) {
+                crc ^= buffer[i];
+                for (let j = 0; j < 8; j++) {
+                    if ((crc & 0x0001) !== 0) {
+                        crc >>= 1;
+                        crc ^= 0xA001;
+                    } else {
+                        crc >>= 1;
+                    }
+                }
+            }
+            return crc;
+        }
+
+        // Add message to terminal
+        function log(msg, type = 'info') {
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            let color = 'text-gray-400';
+            let prefix = '• ';
+            
+            if (type === 'sent') { color = 'text-green-400'; prefix = 'TX ➔ '; }
+            if (type === 'received') { color = 'text-blue-400'; prefix = 'RX ↞ '; }
+            if (type === 'error') { color = 'text-red-500'; prefix = '!! '; }
+
+            div.className = `py-0.5 ${color}`;
+            div.innerHTML = `<span class="opacity-40 text-xs mr-2">[${time}]</span><span class="font-bold">${prefix}</span><span>${msg}</span>`;
+            
+            terminal.appendChild(div);
+            if (autoScroll.checked) terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Convert string/buffer to hex display
+        function toHexString(buffer) {
+            return Array.from(new Uint8Array(buffer))
+                .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(' ');
+        }
+
+        // Connection logic
+        async function toggleConnection() {
+            if (port) {
+                // Disconnect
+                keepReading = false;
+                reader.cancel();
+                await port.close();
+                port = null;
+                updateUI(false);
+                log('Port disconnected.');
+            } else {
+                // Connect
+                try {
+                    port = await navigator.serial.requestPort();
+                    const baud = parseInt(baudRateSelect.value);
+                    await port.open({ baudRate: baud });
+                    updateUI(true);
+                    log(`Connected at ${baud} baud.`);
+                    readLoop();
+                } catch (err) {
+                    log(`Connection failed: ${err.message}`, 'error');
+                }
+            }
+        }
+
+        function updateUI(connected) {
+            if (connected) {
+                btnText.textContent = 'Disconnect';
+                connectBtn.classList.replace('bg-blue-600', 'bg-red-600');
+                connStatus.innerHTML = '<span class="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span><span>Connected</span>';
+                connStatus.classList.replace('text-red-400', 'text-green-400');
+            } else {
+                btnText.textContent = 'Connect Port';
+                connectBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                connStatus.innerHTML = '<span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span><span>Disconnected</span>';
+                connStatus.classList.replace('text-green-400', 'text-red-400');
+            }
+        }
+
+        // Reader Loop
+        async function readLoop() {
+            keepReading = true;
+            while (port && port.readable && keepReading) {
+                reader = port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        let display;
+                        if (showHex.checked) {
+                            display = toHexString(value);
+                        } else {
+                            display = new TextDecoder().decode(value);
+                        }
+                        log(display, 'received');
+                    }
+                } catch (err) {
+                    log('Read error: ' + err.message, 'error');
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+        }
+
+        // Send Logic
+        async function sendData() {
+            if (!port || !port.writable) {
+                log('No port connected!', 'error');
+                return;
+            }
+
+            let input = commandInput.value.trim();
+            if (!input) return;
+
+            let payload;
+            
+            // 1. Process Raw Input based on HEX vs TEXT
+            if (inputType.value === 'hex') {
+                const hexMatches = input.match(/[0-9A-Fa-f]{2}/g);
+                if (!hexMatches) {
+                    log('Invalid HEX format!', 'error');
+                    return;
+                }
+                payload = new Uint8Array(hexMatches.map(h => parseInt(h, 16)));
+            } else {
+                let text = input;
+                // Append EOL if not in Modbus mode (Modbus usually doesn't use standard ASCII EOL)
+                if (protocolMode.value !== 'modbus') {
+                    if (eolMode.value === 'cr') text += '\r';
+                    if (eolMode.value === 'lf') text += '\n';
+                    if (eolMode.value === 'crlf') text += '\r\n';
+                }
+                payload = new TextEncoder().encode(text);
+            }
+
+            // 2. Protocol Wrappers
+            if (protocolMode.value === 'modbus') {
+                const crc = calculateCRC16(payload);
+                const finalBuffer = new Uint8Array(payload.length + 2);
+                finalBuffer.set(payload);
+                finalBuffer[payload.length] = crc & 0xFF;        // Low byte
+                finalBuffer[payload.length + 1] = (crc >> 8) & 0xFF; // High byte
+                payload = finalBuffer;
+            }
+
+            // 3. Write to Serial
+            const writer = port.writable.getWriter();
+            try {
+                await writer.write(payload);
+                log(toHexString(payload) + (inputType.value === 'text' ? ` ("${input}")` : ''), 'sent');
+                commandInput.value = '';
+                modbusPreview.classList.add('hidden');
+            } catch (err) {
+                log('Write failed: ' + err.message, 'error');
+            } finally {
+                writer.releaseLock();
+            }
+        }
+
+        // Real-time Modbus CRC preview
+        commandInput.addEventListener('input', () => {
+            if (protocolMode.value === 'modbus' && commandInput.value.length > 0) {
+                try {
+                    let raw = [];
+                    if (inputType.value === 'hex') {
+                        const matches = commandInput.value.match(/[0-9A-Fa-f]{2}/g) || [];
+                        raw = matches.map(h => parseInt(h, 16));
+                    } else {
+                        raw = Array.from(new TextEncoder().encode(commandInput.value));
+                    }
+
+                    if (raw.length > 0) {
+                        const crc = calculateCRC16(new Uint8Array(raw));
+                        const crcLow = (crc & 0xFF).toString(16).padStart(2, '0').toUpperCase();
+                        const crcHigh = ((crc >> 8) & 0xFF).toString(16).padStart(2, '0').toUpperCase();
+                        
+                        modbusPreview.classList.remove('hidden');
+                        const dataHex = raw.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+                        crcPreview.innerHTML = `${dataHex} <span class="bg-blue-900 px-1 rounded text-white">${crcLow} ${crcHigh}</span>`;
+                    }
+                } catch(e) {}
+            } else {
+                modbusPreview.classList.add('hidden');
+            }
+        });
+
+        // Listeners
+        connectBtn.addEventListener('click', toggleConnection);
+        sendBtn.addEventListener('click', sendData);
+        commandInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendData(); });
+        clearBtn.addEventListener('click', () => { terminal.innerHTML = ''; });
+        
+        protocolMode.addEventListener('change', () => {
+            if (protocolMode.value === 'modbus') {
+                inputType.value = 'hex'; // Modbus is typically HEX
+                eolMode.disabled = true;
+                log('Switched to Modbus RTU: CRC16 will be appended automatically.');
+            } else {
+                eolMode.disabled = false;
+                log('Switched to Standard Terminal.');
+            }
+        });
+
+        // Check compatibility
+        window.onload = () => {
+            if (!("serial" in navigator)) {
+                log('Web Serial API is not supported in this browser. Please use Chrome or Edge.', 'error');
+                connectBtn.disabled = true;
+                connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+    </script>
+</body>
+</html>
